@@ -47,41 +47,65 @@ Describe "Raspberry Pi Imager discovery" {
         . (Join-Path $PSScriptRoot "../modules/Image.ps1")
     }
 
-    It "uses an explicitly specified full path" {
-        $explicitPath = Join-Path $TestDrive "imager-custom.exe"
-        Set-Content -LiteralPath $explicitPath -Value "test"
-        (Resolve-ImagerPath -ImagerPath $explicitPath) | Should -Be $explicitPath
+    BeforeEach {
+        $configPath = Join-Path $TestDrive "config.local.json"
     }
 
-    It "rejects a relative explicit path instead of silently searching" {
-        { Resolve-ImagerPath -ImagerPath "missing.exe" } | Should -Throw "*absolute path*"
+    It "uses an executable specified in the machine config" {
+        $exe = Join-Path $TestDrive "custom-imager.exe"
+        Set-Content -LiteralPath $exe -Value "test"
+        @{ imagerPath = $exe } | ConvertTo-Json | Set-Content -LiteralPath $configPath
+        (Resolve-ImagerPath -ConfigPath $configPath) | Should -Be $exe
     }
 
-    It "fails for an absent explicit executable instead of falling back" {
-        $missingPath = Join-Path $TestDrive "does-not-exist.exe"
-        { Resolve-ImagerPath -ImagerPath $missingPath } | Should -Throw "*specified -ImagerPath*"
+    It "rejects a relative configured path" {
+        '{"imagerPath":"relative.exe"}' | Set-Content -LiteralPath $configPath
+        { Resolve-ImagerPath -ConfigPath $configPath } | Should -Throw "*absolute path*"
     }
 
-    It "prefers an application discovered on PATH" {
+    It "fails on a nonexistent configured path without fallback" {
+        $exe = Join-Path $TestDrive "missing.exe"
+        @{ imagerPath = $exe } | ConvertTo-Json | Set-Content -LiteralPath $configPath
+        { Resolve-ImagerPath -ConfigPath $configPath } | Should -Throw "*configured imagerPath*"
+    }
+
+    It "rejects malformed JSON config" {
+        '{"imagerPath":' | Set-Content -LiteralPath $configPath
+        { Resolve-ImagerPath -ConfigPath $configPath } | Should -Throw "*Unable to read Imager configuration*"
+    }
+
+    It "prefers an application from PATH when config is absent" {
         Mock Get-Command {
             [pscustomobject]@{ Source = "C:\tools\rpi-imager.exe" }
         } -ParameterFilter { $Name -eq "rpi-imager.exe" }
-        (Resolve-ImagerPath) | Should -Be "C:\tools\rpi-imager.exe"
+        (Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @()) | Should -Be "C:\tools\rpi-imager.exe"
     }
 
-    It "finds the current installer directory under Program Files" {
+    It "finds an Imager directory nested below a Raspberry-named folder" {
         Mock Get-Command { $null } -ParameterFilter { $Name -eq "rpi-imager.exe" }
-        $previous = $env:ProgramFiles
-        try {
-            $env:ProgramFiles = $TestDrive
-            $directory = Join-Path $TestDrive "Raspberry Pi Ltd\Imager"
-            New-Item -ItemType Directory -Path $directory -Force | Out-Null
-            $exe = Join-Path $directory "rpi-imager.exe"
-            Set-Content -LiteralPath $exe -Value "test"
-            (Resolve-ImagerPath) | Should -Be $exe
-        }
-        finally {
-            $env:ProgramFiles = $previous
-        }
+        $root = Join-Path $TestDrive "ProgramFiles"
+        $directory = Join-Path $root "Raspberry Pi Ltd\Imager"
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        $exe = Join-Path $directory "rpi-imager.exe"
+        Set-Content -LiteralPath $exe -Value "test"
+        (Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @($root)) | Should -Be $exe
+    }
+
+    It "finds a custom nested installation with Imager in its folder name" {
+        Mock Get-Command { $null } -ParameterFilter { $Name -eq "rpi-imager.exe" }
+        $root = Join-Path $TestDrive "LocalAppData"
+        $directory = Join-Path $root "Programs\Vendor\Portable Imager\bin"
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        $exe = Join-Path $directory "rpi-imager.exe"
+        Set-Content -LiteralPath $exe -Value "test"
+        (Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @($root)) | Should -Be $exe
+    }
+
+    It "does not select an executable outside matching folders" {
+        Mock Get-Command { $null } -ParameterFilter { $Name -eq "rpi-imager.exe" }
+        $root = Join-Path $TestDrive "OtherApps"
+        New-Item -ItemType Directory -Path (Join-Path $root "Unrelated") -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $root "Unrelated\rpi-imager.exe") -Value "test"
+        { Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @($root) } | Should -Throw "*not found*"
     }
 }
