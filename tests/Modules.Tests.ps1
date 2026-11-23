@@ -35,9 +35,62 @@ Describe "Boot file text encoding" {
     }
 }
 
-Describe "NixOS support" {
-    It "returns an explicit unsupported error" {
-        { Assert-NixOsSupported } | Should -Throw "*NixOS is not supported yet*"
+Describe "NixOS Pi 4 image selection and download" {
+    BeforeAll {
+        . (Join-Path $PSScriptRoot "../modules/NixOS.ps1")
+    }
+
+    It "selects a fixed NixOS 26.05 AArch64 SD image" {
+        $image = Get-NixOsImage
+        $image.name | Should -Be "NixOS 26.05 AArch64 SD image"
+        $image.url | Should -Match "hydra.nixos.org/job/nixos/release-26.05/nixos.sd_image.aarch64-linux"
+        $image.extract_sha256 | Should -BeNullOrEmpty
+    }
+
+    It "downloads to the requested local file path" {
+        $destination = Join-Path $TestDrive "nixos.img.zst"
+        Mock Invoke-WebRequest {
+            Set-Content -LiteralPath $OutFile -Value "fake-image"
+        }
+        Save-NixOsImage -ImageUrl "https://example.org/sd-image" -Destination $destination | Should -Be $destination
+        Test-Path -LiteralPath $destination | Should -BeTrue
+    }
+
+    It "removes partial downloads on failure" {
+        $destination = Join-Path $TestDrive "partial.img.zst"
+        Mock Invoke-WebRequest {
+            Set-Content -LiteralPath $OutFile -Value "partial"
+            throw "network failure"
+        }
+        { Save-NixOsImage -ImageUrl "https://example.org/sd-image" -Destination $destination } |
+            Should -Throw "*Failed to download NixOS SD image*"
+        Test-Path -LiteralPath $destination | Should -BeFalse
+    }
+}
+
+Describe "Imager argument generation" {
+    BeforeAll {
+        . (Join-Path $PSScriptRoot "../modules/Image.ps1")
+    }
+
+    It "omits --sha256 for the NixOS image" {
+        Mock Start-Process {
+            [pscustomobject]@{ ExitCode = 0 }
+        }
+        Write-SdImage -ImagerPath "imager.exe" -ImageUrl "nixos.img.zst" -Device "device"
+        Should -Invoke Start-Process -Times 1 -ParameterFilter {
+            $ArgumentList -notcontains "--sha256" -and $ArgumentList -contains "nixos.img.zst"
+        }
+    }
+
+    It "retains --sha256 for Raspberry Pi OS" {
+        Mock Start-Process {
+            [pscustomobject]@{ ExitCode = 0 }
+        }
+        Write-SdImage -ImagerPath "imager.exe" -ImageUrl "raspios.img.xz" -Sha256 "abc123" -Device "device"
+        Should -Invoke Start-Process -Times 1 -ParameterFilter {
+            $ArgumentList -contains "--sha256" -and $ArgumentList -contains "abc123"
+        }
     }
 }
 
