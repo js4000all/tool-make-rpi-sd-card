@@ -23,20 +23,26 @@ SDカード作成時に以下を自動設定します。
 Raspberry Pi Imagerは公式サイトでダウンロードできます。
 https://www.raspberrypi.com/software/
 
-Imagerの実行ファイルは自動検出されます。次の優先順位で探します。
+Imagerの実行ファイルは、PCごとの設定ファイルまたは自動探索で決定します。CLIでフルパスを毎回指定する必要はありません。
 
-1. `-ImagerPath` で明示指定された絶対パス（指定された場合は他の候補を探しません）
-2. 環境変数 `PATH` 上の `rpi-imager.exe`
-3. `Program Files`、`Program Files (x86)`、`LOCALAPPDATA` 配下の代表的なインストール先（`Raspberry Pi Ltd\Imager`、旧 `Raspberry Pi Imager` など）
-
-見つからない場合は、SDカードの消去確認より前にエラーを表示します。`-SkipImager` 指定時はImagerを使用しないため検出しません。
-
-標準以外の場所にインストールされている場合はフルパスを渡せます。
+固定パスを使用したい場合は、リポジトリ直下で `config.example.json` を `config.local.json` にコピーし、次のように編集してください。
 
 
-```powershell
-.\Make-RpiSdCard.ps1 -Hostname rpi-01 -ImagerPath "C:\Program Files\Raspberry Pi Ltd\Imager\rpi-imager.exe"
+```json
+{
+  "imagerPath": "C:\\Program Files\\Raspberry Pi Ltd\\Imager\\rpi-imager.exe"
+}
 ```
+
+WindowsのJSONファイルでは `\` をエスケープする必要があります。`config.local.json` はGit管理対象から除外されます。
+
+検出の優先順位は次のとおりです。
+
+1. `config.local.json` の `imagerPath`（絶対パスを指定。存在しない場合はエラー）
+2. 環境変数 `PATH` 上の `rpi-imager.exe`
+3. `Program Files`、`Program Files (x86)`、`LOCALAPPDATA` を起点に、名前に `Raspberry` または `Imager` を含むディレクトリを再帰的に探し、その配下にある `rpi-imager.exe` を検索
+
+設定ファイルは省略できます。見つからない場合は、SDカードの消去確認より前にエラーを表示します。`-SkipImager` 指定時はImagerを使用しないため検出しません。
 
 ## 使い方
 
