@@ -23,9 +23,9 @@ SDカード作成時に以下を自動設定します。
 Raspberry Pi Imagerは公式サイトでダウンロードできます。
 https://www.raspberrypi.com/software/
 
-Imagerの実行ファイルは、PCごとの設定ファイルまたは自動探索で決定します。CLIでフルパスを毎回指定する必要はありません。
+Imagerの実行ファイルは、リポジトリ直下の `config.local.json` に保存されます。初回は自動探索し、2回目以降は保存されたパスを再利用します。設定ファイルは作成時に自動生成され、Git管理から除外されます。
 
-固定パスを使用したい場合は、リポジトリ直下で `config.example.json` を `config.local.json` にコピーし、次のように編集してください。
+あらかじめ指定したい場合は、`config.example.json` を `config.local.json` にコピーして編集できます。
 
 
 ```json
@@ -34,15 +34,16 @@ Imagerの実行ファイルは、PCごとの設定ファイルまたは自動探
 }
 ```
 
-WindowsのJSONファイルでは `\` をエスケープする必要があります。`config.local.json` はGit管理対象から除外されます。
+JSONのWindowsパスはバックスラッシュを2つ重ねて記述します。
 
-検出の優先順位は次のとおりです。
+検索動作は次の2段階です。
 
-1. `config.local.json` の `imagerPath`（絶対パスを指定。存在しない場合はエラー）
-2. 環境変数 `PATH` 上の `rpi-imager.exe`
-3. `Program Files`、`Program Files (x86)`、`LOCALAPPDATA` を起点に、名前に `Raspberry` または `Imager` を含むディレクトリを再帰的に探し、その配下にある `rpi-imager.exe` を検索
+1. `config.local.json` の `imagerPath` が有効なファイルならそのまま使用します。
+2. ファイルがない・パスが未設定・保存済みのファイルが存在しない場合だけ、`Program Files`、`Program Files (x86)`、`LOCALAPPDATA` 配下で名前に `Raspberry` または `Imager` を含むディレクトリを再帰検索し、その配下の `rpi-imager.exe` を探します。1件だけ見つかればパスを `config.local.json` に保存します。
 
-設定ファイルは省略できます。見つからない場合は、SDカードの消去確認より前にエラーを表示します。`-SkipImager` 指定時はImagerを使用しないため検出しません。
+候補が複数見つかった場合は一覧とエラーを表示します。使用するファイルを `config.local.json` に明示してください。見つからない場合はエラーになります。不正なJSONや相対パス指定もエラーになります。`-SkipImager` 指定時は探索しません。
+
+初回探索は時間がかかる場合があります。PATH探索は行いません。インストール先が変わった場合は、保存済みのパスが存在しなければ再探索して更新します。
 
 ## 使い方
 
