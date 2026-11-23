@@ -1,6 +1,6 @@
 # tool-make-rpi-sd-card
 
-Raspberry Pi OS のSDカード作成と初期設定をワンコマンドで行うPowerShellスクリプトです。
+Raspberry Pi向けSDカード作成を行うPowerShellスクリプトです。現在は Raspberry Pi OS の書き込み・初期設定に対応しています。NixOS対応は準備中です。
 SDカード作成時に以下を自動設定します。
 
 - Raspberry Pi OS Lite 64-bit の書き込み
@@ -137,3 +137,49 @@ SSH公開鍵認証でログインでき、`sudo` が実行できれば初期セ�
 
 `user-data` および `network-config` は、UTF-8 BOMなし・LF改行でSDカードへ書き込まれます。
 cloud-initではBOM付きUTF-8の `user-data` が正しく認識されないため、この処理はスクリプト側で行っています。
+
+
+## OS選択とモジュール構成
+
+
+従来どおり `-Hostname` だけを指定すると Raspberry Pi OS が選択されます。
+
+明示的に指定する場合:
+
+ 
+```powershell
+.\Make-RpiSdCard.ps1 -OS RaspberryPiOS -Hostname rpi-01
+```
+
+現在 `-OS NixOS` は未実装で、ディスク操作より前にエラーとなります。NixOSのイメージ書き込みは後続PRで追加します。
+
+内部処理は次のファイルへ分割しました。
+
+- `Make-RpiSdCard.ps1`: 引数および処理のオーケストレーション
+- `modules/Disk.ps1`: ディスク候補検出と消去確認
+- `modules/Image.ps1`: Raspberry Pi Imager CLIの実行
+- `modules/BootPartition.ps1`: FAT32ブート領域の特定とUTF-8書き込み
+- `modules/RaspberryPiOS.ps1`: Raspberry Pi OSのイメージ選択と初期設定ファイル配置
+- `modules/NixOS.ps1`: NixOS未対応の明示的エラー
+
+設定ファイルは従来の `cloud-init/` に置いたままです。設定ファイルと各モジュールは、実行時のカレントディレクトリに依存せず、スクリプトの位置から解決されます。
+
+## テストの実行
+
+ユニットテストには **Pester 5以降** が必要です。Windows PowerShell 5.1に付属するPester 3.4.0では実行できません。
+
+未インストールの場合は、PowerShellで以下を実行してください。
+
+```powershell
+Install-Module Pester -MinimumVersion 5.0.0 -Scope CurrentUser -Force -SkipPublisherCheck
+```
+
+プロジェクトのルートでテスト用スクリプトを実行します。
+
+```powershell
+.\Run-Tests.ps1
+```
+
+`Run-Tests.ps1` はインストール済みPester 5の最新バージョンを読み込み、スクリプト位置を基準に `tests/` を実行します。Pester 5が存在しない場合、失敗したテストがある場合、テストが実行されなかった場合にはエラーを返します。実SDカードの書き込みは行いません。
+
+テストスクリプトを `powershell tests/Modules.Tests.ps1` のように直接実行せず、`Run-Tests.ps1` を使用してください。
