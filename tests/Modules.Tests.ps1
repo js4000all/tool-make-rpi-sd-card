@@ -40,3 +40,85 @@ Describe "NixOS support" {
         { Assert-NixOsSupported } | Should -Throw "*NixOS is not supported yet*"
     }
 }
+
+
+Describe "Raspberry Pi Imager discovery and caching" {
+    BeforeAll {
+        . (Join-Path $PSScriptRoot "../modules/Image.ps1")
+    }
+
+    BeforeEach {
+        $configPath = Join-Path $TestDrive "config.local.json"
+        Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
+        $root = Join-Path $TestDrive "ImagerTestRoot"
+        Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $root -Force | Out-Null
+    }
+
+    It "reuses an existing cached path without searching" {
+        $exe = Join-Path $TestDrive "custom-imager.exe"
+        Set-Content -LiteralPath $exe -Value "test"
+        @{ imagerPath = $exe } | ConvertTo-Json | Set-Content -LiteralPath $configPath
+        (Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @()) | Should -Be $exe
+    }
+
+    It "rejects a relative configured path" {
+        '{"imagerPath":"relative.exe"}' | Set-Content -LiteralPath $configPath
+        { Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @() } | Should -Throw "*absolute path*"
+    }
+
+    It "rejects malformed JSON config" {
+        '{"imagerPath":' | Set-Content -LiteralPath $configPath
+        { Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @() } | Should -Throw "*Unable to read Imager configuration*"
+    }
+
+    It "discovers an executable and saves its path on first use" {
+        $directory = Join-Path $root "Raspberry Pi Ltd\Imager"
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        $exe = Join-Path $directory "rpi-imager.exe"
+        Set-Content -LiteralPath $exe -Value "test"
+
+        (Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @($root)) | Should -Be $exe
+        (Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json).imagerPath | Should -Be $exe
+        # Cache should work even when the search roots are empty on a later run.
+        (Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @()) | Should -Be $exe
+    }
+
+    It "refreshes an invalid cache and preserves other keys" {
+        @{ imagerPath = (Join-Path $TestDrive "missing.exe"); marker = "keep" } |
+            ConvertTo-Json | Set-Content -LiteralPath $configPath
+        $directory = Join-Path $root "Portable Imager\bin"
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        $exe = Join-Path $directory "rpi-imager.exe"
+        Set-Content -LiteralPath $exe -Value "test"
+
+        (Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @($root)) | Should -Be $exe
+        $saved = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+        $saved.imagerPath | Should -Be $exe
+        $saved.marker | Should -Be "keep"
+    }
+
+    It "rejects multiple distinct executables without overwriting the config" {
+        foreach ($folder in @("Raspberry One", "Imager Two")) {
+            $directory = Join-Path $root $folder
+            New-Item -ItemType Directory -Path $directory -Force | Out-Null
+            Set-Content -LiteralPath (Join-Path $directory "rpi-imager.exe") -Value "test"
+        }
+        { Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @($root) } | Should -Throw "*Multiple Raspberry Pi Imager executables*"
+        Test-Path -LiteralPath $configPath | Should -BeFalse
+    }
+
+    It "ignores an executable outside folders matching Raspberry or Imager" {
+        $directory = Join-Path $root "OtherApps"
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $directory "rpi-imager.exe") -Value "test"
+        { Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @($root) } | Should -Throw "*not found*"
+    }
+
+    It "does not overwrite a stale cache when rediscovery fails" {
+        $oldPath = Join-Path $TestDrive "missing.exe"
+        @{ imagerPath = $oldPath } | ConvertTo-Json | Set-Content -LiteralPath $configPath
+        { Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @($root) } | Should -Throw "*not found*"
+        (Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json).imagerPath | Should -Be $oldPath
+    }
+}

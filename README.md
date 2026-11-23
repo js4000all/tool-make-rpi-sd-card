@@ -23,12 +23,27 @@ SDカード作成時に以下を自動設定します。
 Raspberry Pi Imagerは公式サイトでダウンロードできます。
 https://www.raspberrypi.com/software/
 
-Imagerが`C:\Program Files\Raspberry Pi Imager`にインストールされていることを確認してください。
-異なる場合は、`Make-RpiSdCard.ps1`の以下の行を変更してください。
+Imagerの実行ファイルは、リポジトリ直下の `config.local.json` に保存されます。初回は自動探索し、2回目以降は保存されたパスを再利用します。設定ファイルは作成時に自動生成され、Git管理から除外されます。
 
-```powershell
-$imager = "C:\Program Files\Raspberry Pi Imager\rpi-imager.exe"
+あらかじめ指定したい場合は、`config.example.json` を `config.local.json` にコピーして編集できます。
+
+
+```json
+{
+  "imagerPath": "C:\\Program Files\\Raspberry Pi Ltd\\Imager\\rpi-imager.exe"
+}
 ```
+
+JSONのWindowsパスはバックスラッシュを2つ重ねて記述します。
+
+検索動作は次の2段階です。
+
+1. `config.local.json` の `imagerPath` が有効なファイルならそのまま使用します。
+2. ファイルがない・パスが未設定・保存済みのファイルが存在しない場合だけ、`Program Files`、`Program Files (x86)`、`LOCALAPPDATA` 配下で名前に `Raspberry` または `Imager` を含むディレクトリを再帰検索し、その配下の `rpi-imager.exe` を探します。1件だけ見つかればパスを `config.local.json` に保存します。
+
+候補が複数見つかった場合は一覧とエラーを表示します。使用するファイルを `config.local.json` に明示してください。見つからない場合はエラーになります。不正なJSONや相対パス指定もエラーになります。`-SkipImager` 指定時は探索しません。
+
+初回探索は時間がかかる場合があります。PATH探索は行いません。インストール先が変わった場合は、保存済みのパスが存在しなければ再探索して更新します。
 
 ## 使い方
 

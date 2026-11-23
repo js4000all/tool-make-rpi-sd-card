@@ -1,0 +1,2 @@
+# Machine-specific paths must not be committed.
+/config.local.json
