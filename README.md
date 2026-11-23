@@ -164,9 +164,22 @@ cloud-initではBOM付きUTF-8の `user-data` が正しく認識されないた�
 
 設定ファイルは従来の `cloud-init/` に置いたままです。設定ファイルと各モジュールは、実行時のカレントディレクトリに依存せず、スクリプトの位置から解決されます。
 
-Pester 5で、実SDカードを使用しないユニットテストを実行できます。
+## テストの実行
 
+ユニットテストには **Pester 5以降** が必要です。Windows PowerShell 5.1に付属するPester 3.4.0では実行できません。
+
+未インストールの場合は、PowerShellで以下を実行してください。
 
 ```powershell
-Invoke-Pester ./tests
+Install-Module Pester -MinimumVersion 5.0.0 -Scope CurrentUser -Force -SkipPublisherCheck
 ```
+
+プロジェクトのルートでテスト用スクリプトを実行します。
+
+```powershell
+.\Run-Tests.ps1
+```
+
+`Run-Tests.ps1` はインストール済みPester 5の最新バージョンを読み込み、スクリプト位置を基準に `tests/` を実行します。Pester 5が存在しない場合、失敗したテストがある場合、テストが実行されなかった場合にはエラーを返します。実SDカードの書き込みは行いません。
+
+テストスクリプトを `powershell tests/Modules.Tests.ps1` のように直接実行せず、`Run-Tests.ps1` を使用してください。
