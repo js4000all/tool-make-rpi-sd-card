@@ -5,6 +5,8 @@ param (
     [ValidateSet("RaspberryPiOS", "NixOS")]
     [string]$OS = "RaspberryPiOS",
 
+    [string]$ImagerPath,
+
     [switch]$SkipImager
 )
 
@@ -21,7 +23,6 @@ if ($OS -eq "NixOS") {
     Assert-NixOsSupported
 }
 
-$imager = "C:\Program Files\Raspberry Pi Imager\rpi-imager.exe"
 $image = Get-RaspberryPiOsImage
 $imageUrl = $image.url
 $sha256 = $image.extract_sha256
@@ -40,8 +41,10 @@ $device = "\\.\PhysicalDrive$diskNumber"
 if ($SkipImager) {
     Write-Host "Skipping Raspberry Pi Imager."
 } else {
+    $resolvedImagerPath = Resolve-ImagerPath -ImagerPath $ImagerPath
+    Write-Host "Raspberry Pi Imager: $resolvedImagerPath"
     Confirm-DiskErase -Disk $disk
-    Write-SdImage -ImagerPath $imager -ImageUrl $imageUrl -Sha256 $sha256 -Device $device
+    Write-SdImage -ImagerPath $resolvedImagerPath -ImageUrl $imageUrl -Sha256 $sha256 -Device $device
 }
 
 $bootDrive = Get-BootDrive -DiskNumber $diskNumber
