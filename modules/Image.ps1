@@ -42,6 +42,7 @@ function Resolve-ImagerPath {
         )
     }
 
+    Write-Host "Searching for Raspberry Pi Imager in program directories..."
     $foundPaths = @{} # PowerShell hashtable keys are case-insensitive by default.
     foreach ($root in @($SearchRoots | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
         if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }
