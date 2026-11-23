@@ -5,8 +5,6 @@ param (
     [ValidateSet("RaspberryPiOS", "NixOS")]
     [string]$OS = "RaspberryPiOS",
 
-    [string]$ImagerPath,
-
     [switch]$SkipImager
 )
 
@@ -41,7 +39,7 @@ $device = "\\.\PhysicalDrive$diskNumber"
 if ($SkipImager) {
     Write-Host "Skipping Raspberry Pi Imager."
 } else {
-    $resolvedImagerPath = Resolve-ImagerPath -ImagerPath $ImagerPath
+    $resolvedImagerPath = Resolve-ImagerPath -ConfigPath (Join-Path $PSScriptRoot "config.local.json")
     Write-Host "Raspberry Pi Imager: $resolvedImagerPath"
     Confirm-DiskErase -Disk $disk
     Write-SdImage -ImagerPath $resolvedImagerPath -ImageUrl $imageUrl -Sha256 $sha256 -Device $device
