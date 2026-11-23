@@ -45,6 +45,8 @@ JSONのWindowsパスはバックスラッシュを2つ重ねて記述します�
 
 初回探索は時間がかかる場合があります。PATH探索は行いません。インストール先が変わった場合は、保存済みのパスが存在しなければ再探索して更新します。
 
+Imagerの実行ファイルは、Raspberry Pi OS のイメージ情報取得（`Fetching Raspberry Pi OS image information...`）より前に確定します。キャッシュがなく自動探索に入る場合は `Searching for Raspberry Pi Imager in program directories...` と表示します。
+
 ## 使い方
 
 大きくは次の3ステップです。
