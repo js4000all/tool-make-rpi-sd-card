@@ -72,6 +72,28 @@ Describe "Raspberry Pi Imager discovery and caching" {
         { Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @() } | Should -Throw "*Unable to read Imager configuration*"
     }
 
+    It "announces directory search when no cached path is available" {
+        $directory = Join-Path $root "Raspberry Pi Ltd\Imager"
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        Set-Content -LiteralPath (Join-Path $directory "rpi-imager.exe") -Value "test"
+        Mock Write-Host {}
+        Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @($root) | Out-Null
+        Should -Invoke Write-Host -Times 1 -Exactly -ParameterFilter {
+            $Object -eq "Searching for Raspberry Pi Imager in program directories..."
+        }
+    }
+
+    It "skips search message when cached path is valid" {
+        $exe = Join-Path $TestDrive "cached-imager.exe"
+        Set-Content -LiteralPath $exe -Value "test"
+        @{ imagerPath = $exe } | ConvertTo-Json | Set-Content -LiteralPath $configPath
+        Mock Write-Host {}
+        Resolve-ImagerPath -ConfigPath $configPath -SearchRoots @() | Out-Null
+        Should -Invoke Write-Host -Times 0 -Exactly -ParameterFilter {
+            $Object -eq "Searching for Raspberry Pi Imager in program directories..."
+        }
+    }
+
     It "discovers an executable and saves its path on first use" {
         $directory = Join-Path $root "Raspberry Pi Ltd\Imager"
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
