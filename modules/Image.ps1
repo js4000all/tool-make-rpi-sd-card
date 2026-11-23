@@ -1,49 +1,64 @@
 function Resolve-ImagerPath {
-    param([string]$ImagerPath)
+    param(
+        [Parameter(Mandatory = $true)][string]$ConfigPath,
+        [string[]]$SearchRoots
+    )
 
-    if (-not [string]::IsNullOrWhiteSpace($ImagerPath)) {
-        if (-not [System.IO.Path]::IsPathRooted($ImagerPath)) {
-            throw "-ImagerPath must be an absolute path: $ImagerPath"
+    # A machine-local configuration file is optional. An explicit invalid path
+    # must fail rather than silently selecting another executable.
+    if (Test-Path -LiteralPath $ConfigPath -PathType Leaf) {
+        try {
+            $config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json -ErrorAction Stop
         }
-        if (-not (Test-Path -LiteralPath $ImagerPath -PathType Leaf)) {
-            throw "Raspberry Pi Imager was not found at the specified -ImagerPath: $ImagerPath"
+        catch {
+            throw "Unable to read Imager configuration at '$ConfigPath': $($_.Exception.Message)"
         }
-        return (Resolve-Path -LiteralPath $ImagerPath).ProviderPath
+
+        if ($null -ne $config.imagerPath -and -not ($config.imagerPath -is [string])) {
+            throw "imagerPath must be a string in '$ConfigPath'."
+        }
+        if (-not [string]::IsNullOrWhiteSpace($config.imagerPath)) {
+            $configuredPath = $config.imagerPath
+            if (-not [System.IO.Path]::IsPathRooted($configuredPath)) {
+                throw "Configured imagerPath must be an absolute path: $configuredPath"
+            }
+            if (-not (Test-Path -LiteralPath $configuredPath -PathType Leaf)) {
+                throw "Raspberry Pi Imager was not found at configured imagerPath: $configuredPath"
+            }
+            return (Resolve-Path -LiteralPath $configuredPath).ProviderPath
+        }
     }
 
-    # Check PATH first, including user-managed and portable installations.
+    # A portable/PATH installation takes precedence over installed directories.
     $command = Get-Command -Name "rpi-imager.exe" -CommandType Application -ErrorAction SilentlyContinue |
         Select-Object -First 1
     if ($command) {
         return $command.Source
     }
 
-    # Support both current and legacy installer locations, including per-user installs.
-    $roots = @($env:ProgramFiles, $env:LOCALAPPDATA) |
-        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
-        Select-Object -Unique
-    $programFilesX86 = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
-    if ($programFilesX86 -and $programFilesX86 -notin $roots) {
-        $roots = @($roots) + $programFilesX86
+    if (-not $PSBoundParameters.ContainsKey("SearchRoots")) {
+        $SearchRoots = @($env:ProgramFiles, [Environment]::GetEnvironmentVariable("ProgramFiles(x86)"), $env:LOCALAPPDATA)
     }
 
-    $relativePaths = @(
-        "Raspberry Pi Ltd\Imager\rpi-imager.exe",
-        "Raspberry Pi Imager\rpi-imager.exe",
-        "Programs\Raspberry Pi Ltd\Imager\rpi-imager.exe",
-        "Programs\Raspberry Pi Imager\rpi-imager.exe"
-    )
+    foreach ($root in @($SearchRoots | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }
 
-    foreach ($root in $roots) {
-        foreach ($relativePath in $relativePaths) {
-            $candidate = Join-Path $root $relativePath
-            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-                return (Resolve-Path -LiteralPath $candidate).ProviderPath
+        # Find folders whose names contain Raspberry or Imager, and then
+        # locate rpi-imager.exe anywhere beneath each matching folder.
+        $folders = @(Get-ChildItem -LiteralPath $root -Directory -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match 'Raspberry|Imager' } |
+            Sort-Object FullName)
+        foreach ($folder in $folders) {
+            $executable = Get-ChildItem -LiteralPath $folder.FullName -File -Recurse -Filter "rpi-imager.exe" -ErrorAction SilentlyContinue |
+                Sort-Object FullName |
+                Select-Object -First 1
+            if ($executable) {
+                return $executable.FullName
             }
         }
     }
 
-    throw "Raspberry Pi Imager was not found. Install it or specify its executable using -ImagerPath 'C:\path\to\rpi-imager.exe'."
+    throw "Raspberry Pi Imager was not found. Install it, add it to PATH, or set imagerPath in config.local.json."
 }
 
 function Write-SdImage {
