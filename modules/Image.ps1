@@ -42,7 +42,7 @@ function Resolve-ImagerPath {
         )
     }
 
-    $matches = @{} # PowerShell hashtable keys are case-insensitive by default.
+    $foundPaths = @{} # PowerShell hashtable keys are case-insensitive by default.
     foreach ($root in @($SearchRoots | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)) {
         if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }
 
@@ -54,20 +54,20 @@ function Resolve-ImagerPath {
         foreach ($folder in $folders) {
             $executables = @(Get-ChildItem -LiteralPath $folder.FullName -File -Recurse -Filter "rpi-imager.exe" -ErrorAction SilentlyContinue)
             foreach ($exe in $executables) {
-                $matches[$exe.FullName] = $true
+                $foundPaths[$exe.FullName] = $true
             }
         }
     }
 
-    if ($matches.Count -eq 0) {
+    if ($foundPaths.Count -eq 0) {
         throw "Raspberry Pi Imager was not found. Install it or set imagerPath in config.local.json."
     }
-    if ($matches.Count -gt 1) {
-        $choices = (@($matches.Keys) | Sort-Object) -join [Environment]::NewLine
+    if ($foundPaths.Count -gt 1) {
+        $choices = (@($foundPaths.Keys) | Sort-Object) -join [Environment]::NewLine
         throw "Multiple Raspberry Pi Imager executables were found. Set imagerPath in config.local.json to choose one:$([Environment]::NewLine)$choices"
     }
 
-    $resolved = @($matches.Keys)[0]
+    $resolved = @($foundPaths.Keys)[0]
     # Write the cache only after a unique executable has been found.
     # Ensure the parent directory exists, and preserve other config keys.
     $config | Add-Member -NotePropertyName imagerPath -NotePropertyValue $resolved -Force
