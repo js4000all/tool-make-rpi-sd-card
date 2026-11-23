@@ -23,11 +23,19 @@ SDカード作成時に以下を自動設定します。
 Raspberry Pi Imagerは公式サイトでダウンロードできます。
 https://www.raspberrypi.com/software/
 
-Imagerが`C:\Program Files\Raspberry Pi Imager`にインストールされていることを確認してください。
-異なる場合は、`Make-RpiSdCard.ps1`の以下の行を変更してください。
+Imagerの実行ファイルは自動検出されます。次の優先順位で探します。
+
+1. `-ImagerPath` で明示指定された絶対パス（指定された場合は他の候補を探しません）
+2. 環境変数 `PATH` 上の `rpi-imager.exe`
+3. `Program Files`、`Program Files (x86)`、`LOCALAPPDATA` 配下の代表的なインストール先（`Raspberry Pi Ltd\Imager`、旧 `Raspberry Pi Imager` など）
+
+見つからない場合は、SDカードの消去確認より前にエラーを表示します。`-SkipImager` 指定時はImagerを使用しないため検出しません。
+
+標準以外の場所にインストールされている場合はフルパスを渡せます。
+
 
 ```powershell
-$imager = "C:\Program Files\Raspberry Pi Imager\rpi-imager.exe"
+.\Make-RpiSdCard.ps1 -Hostname rpi-01 -ImagerPath "C:\Program Files\Raspberry Pi Ltd\Imager\rpi-imager.exe"
 ```
 
 ## 使い方
