@@ -1,6 +1,6 @@
 # tool-make-rpi-sd-card
 
-Raspberry Pi向けSDカード作成を行うPowerShellスクリプトです。現在は Raspberry Pi OS の書き込み・初期設定に対応しています。NixOS対応は準備中です。
+Raspberry Pi向けSDカード作成を行うPowerShellスクリプトです。Raspberry Pi OS の書き込み・初期設定と、Raspberry Pi 4向けNixOS公式SDイメージの書き込みに対応します。
 SDカード作成時に以下を自動設定します。
 
 - Raspberry Pi OS Lite 64-bit の書き込み
@@ -168,7 +168,17 @@ cloud-initではBOM付きUTF-8の `user-data` が正しく認識されないた�
 .\Make-RpiSdCard.ps1 -OS RaspberryPiOS -Hostname rpi-01
 ```
 
-現在 `-OS NixOS` は未実装で、ディスク操作より前にエラーとなります。NixOSのイメージ書き込みは後続PRで追加します。
+NixOSをRaspberry Pi 4に書き込む場合:
+
+```powershell
+.\Make-RpiSdCard.ps1 -OS NixOS -Hostname rpi-01
+```
+
+NixOSは公式のstable 26.05系統・汎用AArch64 SDイメージを使用します。Hydraの26.05リリースジョブの最新成功成果物をダウンロードします（**ビルド単位の完全固定ではありません**）。HydraのダウンロードURLはこのPRの作成時点でWindowsからの実ダウンロード確認がまだできていないため、最初の試行で動作確認してください。
+
+NixOSの処理は「イメージ選択→SDカード書き込み→Post（今回は何もしない）」の3段階です。ダウンロードした圧縮イメージは一時ディレクトリに保存してImagerに渡し、書き込みの成否にかかわらず削除します。展開後のSHA256を確認できていないため `--sha256` は付けず、Imager標準の書き込み後検証は有効です。
+
+この段階では `-Hostname` はCLI互換のための必須引数ですが、NixOSへは適用されません。SSH、ネットワーク設定、cloud-init、Tailscaleの初期設定は実施せず、SDカードをPi 4で起動してHDMI/キーボードなどのローカルコンソールから確認します。Raspberry Pi OS固有のブートファイルは配置しません。
 
 内部処理は次のファイルへ分割しました。
 
@@ -177,7 +187,7 @@ cloud-initではBOM付きUTF-8の `user-data` が正しく認識されないた�
 - `modules/Image.ps1`: Raspberry Pi Imager CLIの実行
 - `modules/BootPartition.ps1`: FAT32ブート領域の特定とUTF-8書き込み
 - `modules/RaspberryPiOS.ps1`: Raspberry Pi OSのイメージ選択と初期設定ファイル配置
-- `modules/NixOS.ps1`: NixOS未対応の明示的エラー
+- `modules/NixOS.ps1`: Pi 4向け公式NixOS SDイメージの選択とダウンロード
 
 設定ファイルは従来の `cloud-init/` に置いたままです。設定ファイルと各モジュールは、実行時のカレントディレクトリに依存せず、スクリプトの位置から解決されます。
 
