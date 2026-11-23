@@ -21,6 +21,14 @@ if ($OS -eq "NixOS") {
     Assert-NixOsSupported
 }
 
+# Resolve the Imager before fetching OS metadata or probing disks.
+if ($SkipImager) {
+    Write-Host "Skipping Raspberry Pi Imager."
+} else {
+    $resolvedImagerPath = Resolve-ImagerPath -ConfigPath (Join-Path $PSScriptRoot "config.local.json")
+    Write-Host "Raspberry Pi Imager: $resolvedImagerPath"
+}
+
 $image = Get-RaspberryPiOsImage
 $imageUrl = $image.url
 $sha256 = $image.extract_sha256
@@ -36,11 +44,7 @@ $disk = Get-TargetDisk
 $diskNumber = $disk.Number
 $device = "\\.\PhysicalDrive$diskNumber"
 
-if ($SkipImager) {
-    Write-Host "Skipping Raspberry Pi Imager."
-} else {
-    $resolvedImagerPath = Resolve-ImagerPath -ConfigPath (Join-Path $PSScriptRoot "config.local.json")
-    Write-Host "Raspberry Pi Imager: $resolvedImagerPath"
+if (-not $SkipImager) {
     Confirm-DiskErase -Disk $disk
     Write-SdImage -ImagerPath $resolvedImagerPath -ImageUrl $imageUrl -Sha256 $sha256 -Device $device
 }
