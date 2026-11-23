@@ -49,6 +49,8 @@ Describe "Raspberry Pi Imager discovery" {
 
     BeforeEach {
         $configPath = Join-Path $TestDrive "config.local.json"
+        # $TestDrive is reused across tests: clear files left by previous cases.
+        Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
     }
 
     It "uses an executable specified in the machine config" {
